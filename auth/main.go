@@ -25,6 +25,7 @@ import (
 )
 
 func Run() error {
+	time.Sleep(5 * time.Second)
 	rand.Seed(time.Now().UnixNano())
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -71,7 +72,7 @@ func Run() error {
 	return grpcServer.Serve(lis)
 }
 
-func main1() {
+func main() {
 	if err := Run(); err != nil {
 		log.Fatalf("failed to run server: %v", err)
 	}

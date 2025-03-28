@@ -1,26 +1,21 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:latest AS builder
 
 WORKDIR /app
 
-ENV GOPROXY=https://proxy.golang.org,direct  
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+RUN go mod download
 
-COPY . .
+COPY . ./
 
-COPY check_postgres.go .
-RUN go build -o check_postgres check_postgres.go
-RUN go build -o auth-service  
+RUN go build -o /app/auth .
 
-# --- stage-1 ---
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates bash  
-
 WORKDIR /app
 
-COPY --from=builder /app/auth-service .  
-COPY --from=builder /app/check_postgres . 
+COPY --from=builder /app/auth /app/auth
+COPY .env .
 
-CMD ["./check_postgres"] 
-# CMD ["./auth-service"]  # Потом вернем эту строку
+EXPOSE 50051
+
+CMD ["/app/auth"] # Явно указываем путь к исполняемому файлу

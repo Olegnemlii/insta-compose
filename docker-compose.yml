@@ -1,5 +1,60 @@
-# version: '3.8'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
 
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  auth-service:
+    build: ./auth
+    ports:
+      - "50051:50051"
+    environment:
+      DATABASE_URL: "postgres://myuser:1234@insta:5432/instadb?sslmode=disable"
+      PORT: 50051
+    depends_on:
+      - postgres
+
+  email-service:
+    build: ./email-service
+    environment:
+      KAFKA_BROKER_ADDRESS: kafka:9092
+      KAFKA_TOPIC: email-notifications
+      MAILOPOST_API_KEY: ${MAILOPOST_API_KEY}
+      MAILOPOST_SENDER: ${MAILOPOST_SENDER}
+    depends_on:
+      - kafka
+    # extra_hosts:
+    #   - "kafka:172.18.0.4"
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
 # services:
 #   postgres:
 #     image: postgres:latest
@@ -8,7 +63,6 @@
 #       POSTGRES_USER: myuser
 #       POSTGRES_PASSWORD: 1234
 #       POSTGRES_DB: instadb
-      
 #       PGDATA: /var/lib/postgresql/data/pgdata
 #     ports:
 #       - "5430:5432"
@@ -18,74 +72,71 @@
 # volumes:
 #   pgdata:
 
+# services:
+#   postgres:
+#     image: postgres:latest
+#     container_name: insta
+#     environment:
+#       POSTGRES_USER: myuser
+#       POSTGRES_PASSWORD: 1234
+#       POSTGRES_DB: instadb
+#     ports:
+#       - "5430:5432"
+#     volumes:
+#       - ./pgdata:/var/lib/postgresql/data
 
-version: '4.3'
+# kafka:
+#   image: confluentinc/cp-kafka:7.5.3  # Используем Confluent Kafka
+#   environment:
+#      KAFKA_PROCESS_ROLES: broker,controller
+#      KAFKA_NODE_ID: 1
+#      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+#      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093
+#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+#      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+#      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+#      KAFKA_ZOOKEEPER_CONNECT: "" 
+#      KAFKA_CLUSTER_ID: "be3f27f7-2fa2-4528-baeb-fec2d41d495b"  # Убедитесь, что KAFKA_CLUSTER_ID определен в .env
 
-services:
-  postgres:
-    image: postgres:latest
-    container_name: insta
-    environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: 1234
-      POSTGRES_DB: instadb
-    ports:
-      - "5430:5432"
-    volumes:
-      - ./pgdata:/var/lib/postgresql/data
+#       #  KAFKA_ZOOKEEPER_CONNECT: "" # Убрано, так как используем KRaft
+#     # depends_on:
+#   #     - zookeeper
 
-  kafka:
-    image: apache/kafka:4.0.0
-    ports:
-      - "9092:9092"
-    environment:
-       KAFKA_PROCESS_ROLES: broker,controller  # Изменено
-       KAFKA_NODE_ID: 1
-       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093 # Добавлено
-       KAFKA_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093 # Добавлено
-       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093 # Добавлено
-       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT # Добавлено
-       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER # Добавлено
-       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-       KAFKA_ZOOKEEPER_CONNECT: "" # Убрано, так как используем KRaft
-    # depends_on:
-  #     - zookeeper
+#   # zookeeper:
+#   #   image: confluentinc/cp-zookeeper:latest
+#   #   environment:
+#   #     ZOOKEEPER_CLIENT_PORT: 2181
+#   #     ZOOKEEPER_TICK_TIME: 2000
 
-  # zookeeper:
-  #   image: confluentinc/cp-zookeeper:latest
-  #   environment:
-  #     ZOOKEEPER_CLIENT_PORT: 2181
-  #     ZOOKEEPER_TICK_TIME: 2000
+#   email-service:
+#     build: ./email-service
+#     environment:
+#       KAFKA_BROKER_ADDRESS: kafka:9092  # Проверьте это
+#       KAFKA_TOPIC: email-notifications
+#       MAILOPOST_API_KEY: MAILOPOST_API_KEY
+#       MAILOPOST_SENDER: MAILOPOST_SENDER
+#     depends_on:
+#       - kafka
 
-  email-service:
-   build: ./email-service
-   environment:
-    KAFKA_BROKER_ADDRESS: kafka:9092
-    KAFKA_TOPIC: email-notifications
-    MAILOPOST_API_KEY: MAILOPOST_API_KEY
-    MAILOPOST_SENDER: MAILOPOST_SENDER
-   depends_on:
-    - kafka
-
-  auth-service:
-    build: ./auth
-    environment:
-     KAFKA_BROKER_ADDRESS: kafka:9092
-     KAFKA_TOPIC: email-notifications
-     MAILOPOST_API_KEY: MAILOPOST_API_KEY
-     MAILOPOST_SENDER: MAILOPOST_SENDER
-     REDIS_ADDR: REDIS_ADDR
-     REDIS_PASSWORD: REDIS_PASSWORD
-     REDIS_DB: REDIS_DB
-     JWT_SECRET: JWT_SECRET}
-     VERIFICATION_CODE_TTL: VERIFICATION_CODE_TTL
-     ACCESS_TOKEN_TTL: ACCESS_TOKEN_TTL
-     REFRESH_TOKEN_TTL:  REFRESH_TOKEN_TTL
-     DATABASE_URL: DATABASE_URL
-     VERIFICATION_CODE_EXPIRE_TIME: VERIFICATION_CODE_EXPIRE_TIME
-    ports:
-     - "50052:50051"
-    depends_on:
-     - kafka
+#   auth-service:
+#     build: ./auth
+#     environment:
+#       KAFKA_BROKER_ADDRESS: kafka:9092
+#       KAFKA_TOPIC: email-notifications
+#       MAILOPOST_API_KEY: MAILOPOST_API_KEY
+#       MAILOPOST_SENDER: MAILOPOST_SENDER
+#       REDIS_ADDR: REDIS_ADDR
+#       REDIS_PASSWORD: REDIS_PASSWORD
+#       REDIS_DB: REDIS_DB
+#       JWT_SECRET: JWT_SECRET}
+#       VERIFICATION_CODE_TTL: VERIFICATION_CODE_TTL
+#       ACCESS_TOKEN_TTL: ACCESS_TOKEN_TTL
+#       REFRESH_TOKEN_TTL: REFRESH_TOKEN_TTL
+#       DATABASE_URL: "${DATABASE_URL}"  # Убедитесь, что DATABASE_URL определена в .env
+#       VERIFICATION_CODE_EXPIRE_TIME: VERIFICATION_CODE_EXPIRE_TIME
+#     ports:
+#       - "50052:50051"
+#     depends_on:
+#       - kafka

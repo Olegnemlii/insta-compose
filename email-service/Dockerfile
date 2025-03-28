@@ -1,15 +1,20 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:latest
+
 WORKDIR /app
-# COPY .env .
+
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN go build -o email-service
 
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
-COPY --from=builder /app/email-service /app/email-service
-CMD ["/app/email-service"]
+COPY . ./
+
+RUN go build -o email-service .
+
+# Установка kafkacat
+RUN apt-get update && apt-get install -y kafkacat # попробуйте сначала это
+# если не работает, попробуйте это
+# RUN apk update && apk add kafkacat
+
+CMD ["./email-service"]
 #  Удалите эти строки (или закомментируйте):
 # ENV MAILOPOST_API_KEY=42b8da8ecf68106419c6208db9cf5353
 # ENV MAILOPOST_SENDER=olegnemlii93@gmail.com
