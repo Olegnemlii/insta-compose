@@ -1,0 +1,9 @@
+-- +goose Down
+-- +goose StatementBegin
+DO $$
+BEGIN
+    DROP TABLE IF EXISTS codes_signatures;
+    DROP TABLE IF EXISTS tokens;
+    DROP TABLE IF EXISTS users;
+END $$;
+-- +goose StatementEnd

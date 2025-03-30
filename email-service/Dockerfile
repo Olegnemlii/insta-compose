@@ -10,7 +10,12 @@ COPY . ./
 RUN go build -o email-service .
 
 # Установка kafkacat
-RUN apt-get update && apt-get install -y kafkacat # попробуйте сначала это
+RUN apt-get update && apt-get install -y kafkacat
+# Обновите список пакетов
+RUN apt-get update -y  
+
+# Установите ping и telnet
+RUN apt-get install iputils-ping telnet -y 
 # если не работает, попробуйте это
 # RUN apk update && apk add kafkacat
 
