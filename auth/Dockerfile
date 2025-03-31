@@ -1,4 +1,4 @@
-FROM golang:latest AS builder
+FROM golang:alpine AS builder
 
 WORKDIR /app
 
@@ -7,17 +7,16 @@ RUN go mod download
 
 COPY . ./
 
-# Установите goose
+
 RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 
-# Установите переменные окружения для миграции
+
 ARG POSTGRES_USER
 ARG POSTGRES_PASSWORD
 ARG POSTGRES_DB
 ENV DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
 
-# Установите psql (PostgreSQL client) - НУЖЕН ТОЛЬКО ДЛЯ МИГРАЦИЙ
-RUN apt-get update && apt-get install -y postgresql-client
+RUN apk add --no-cache postgresql-client
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o auth .
 
@@ -40,4 +39,4 @@ RUN chmod +x /usr/local/bin/goose
 
 EXPOSE 50051
 
-CMD ["./auth"]
+CMD ["/bin/sh", "-c", "sleep 30 && /usr/local/bin/goose -dir /app/migrations up && /app/auth"]

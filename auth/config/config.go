@@ -36,7 +36,7 @@ func LoadConfig() (Config, error) {
 		return Config{}, fmt.Errorf("failed to load config from env: %w", err)
 	}
 
-	Cfg = cfg // Save config
+	Cfg = cfg
 
 	return cfg, nil
 }

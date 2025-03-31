@@ -2,8 +2,12 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
-	"log/slog" // Добавляем импорт для strconv
+	"log/slog"
+	"math/rand"
+	"os"
 	"time"
 
 	"auth/config"
@@ -11,6 +15,7 @@ import (
 	"auth/pkg/pb"
 	authpb "auth/pkg/pb"
 
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,6 +29,12 @@ func NewServer(service *service.Service) *Server {
 	return &Server{service: service}
 }
 
+func generateVerificationCode() string {
+	rand.Seed(time.Now().UnixNano())
+	code := rand.Intn(9000) + 1000
+	return fmt.Sprintf("%d", code)
+}
+
 func (s *Server) Register(ctx context.Context, req *authpb.RegisterRequest) (*authpb.RegisterResponse, error) {
 	if req.Email == "" || req.Password == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "email and password are required")
@@ -35,7 +46,63 @@ func (s *Server) Register(ctx context.Context, req *authpb.RegisterRequest) (*au
 		return nil, status.Errorf(codes.Internal, "failed to register: %v", err)
 	}
 
+	kafkaBrokerAddress := os.Getenv("KAFKA_BROKER_ADDRESS")
+	if kafkaBrokerAddress == "" {
+		log.Println("KAFKA_BROKER_ADDRESS is not set")
+		return nil, fmt.Errorf("KAFKA_BROKER_ADDRESS is not set")
+	}
+	kafkaTopic := os.Getenv("KAFKA_TOPIC")
+	if kafkaTopic == "" {
+		log.Println("KAFKA_TOPIC is not set")
+		return nil, fmt.Errorf("KAFKA_TOPIC is not set")
+	}
+
+	kafkaWriter := &kafka.Writer{
+		Addr:         kafka.TCP(kafkaBrokerAddress),
+		Topic:        kafkaTopic,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
+	}
+	defer func() {
+		if err := kafkaWriter.Close(); err != nil {
+			log.Printf("failed to close kafka writer: %v", err)
+		}
+	}()
+
+	verificationCode := generateVerificationCode()
+
+	err = s.SendEmailNotification(ctx, kafkaWriter, req.Email, "Welcome!", "", verificationCode)
+	if err != nil {
+		log.Printf("failed to send email notification: %v", err)
+		return nil, err
+	}
+
 	return &authpb.RegisterResponse{Signature: signature}, nil
+}
+
+func (s *Server) SendEmailNotification(ctx context.Context, kafkaWriter *kafka.Writer, to, subject, body string, verificationCode string) error {
+	messageBytes, err := json.Marshal(map[string]string{
+		"to":               to,
+		"subject":          subject,
+		"body":             body,
+		"verificationCode": verificationCode,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	msg := kafka.Message{
+
+		Value: messageBytes,
+	}
+
+	err = kafkaWriter.WriteMessages(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("failed to write messages: %w", err)
+	}
+
+	log.Printf("sent message to topic %s: %s\n", os.Getenv("KAFKA_TOPIC"), string(messageBytes))
+	return nil
 }
 
 func (s *Server) VerifyCode(ctx context.Context, req *authpb.VerifyCodeRequest) (*authpb.VerifyCodeResponse, error) {
@@ -52,13 +119,13 @@ func (s *Server) VerifyCode(ctx context.Context, req *authpb.VerifyCodeRequest) 
 		return nil, status.Errorf(codes.Internal, "failed to verify code")
 	}
 
-	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL) // Преобразуем строку в time.Duration
+	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL)
 	if err != nil {
 		log.Printf("invalid AccessTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid AccessTokenTTL")
 	}
 
-	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL) // Преобразуем строку в time.Duration
+	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL)
 	if err != nil {
 		log.Printf("invalid RefreshTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid RefreshTokenTTL")
@@ -122,13 +189,13 @@ func (s *Server) VerifyAndRefreshTokens(ctx context.Context, req *authpb.VerifyA
 		return nil, status.Errorf(codes.Internal, "failed to refresh tokens")
 	}
 
-	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL) // Преобразуем строку в time.Duration
+	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL)
 	if err != nil {
 		log.Printf("invalid AccessTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid AccessTokenTTL")
 	}
 
-	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL) // Преобразуем строку в time.Duration
+	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL)
 	if err != nil {
 		log.Printf("invalid RefreshTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid RefreshTokenTTL")
@@ -163,13 +230,13 @@ func (s *Server) Login(ctx context.Context, req *authpb.LoginRequest) (*authpb.L
 		return nil, err
 	}
 
-	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL) // Преобразуем строку в time.Duration
+	accessTokenTTL, err := time.ParseDuration(config.Cfg.AccessTokenTTL)
 	if err != nil {
 		log.Printf("invalid AccessTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid AccessTokenTTL")
 	}
 
-	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL) // Преобразуем строку в time.Duration
+	refreshTokenTTL, err := time.ParseDuration(config.Cfg.RefreshTokenTTL)
 	if err != nil {
 		log.Printf("invalid RefreshTokenTTL: %v", err)
 		return nil, status.Errorf(codes.Internal, "invalid RefreshTokenTTL")

@@ -26,6 +26,7 @@ import (
 
 func Run() error {
 	time.Sleep(5 * time.Second)
+
 	rand.Seed(time.Now().UnixNano())
 	cfg, err := config.LoadConfig()
 	if err != nil {

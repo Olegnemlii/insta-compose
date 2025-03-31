@@ -55,12 +55,10 @@ func (u *UserRepository) CreateVerificationCodeData(ctx context.Context, code st
         VALUES ($1, $2, $3, $4)
     `
 
-	durationStr := u.cfg.CodeExpireTime // Получаем значение из конфига как строку
-
-	duration, err := time.ParseDuration(durationStr) // Преобразуем строку в time.Duration
+	durationStr := u.cfg.CodeExpireTime
+	duration, err := time.ParseDuration(durationStr)
 	if err != nil {
-		log.Printf("Некорректный формат времени: %s", durationStr)                   // Добавляем логирование ошибки
-		return fmt.Errorf("некорректный формат времени для CodeExpireTime: %w", err) // Возвращаем ошибку
+		return fmt.Errorf("incorrect time format for CodeExpireTime: %w", err)
 	}
 
 	codeExpirationTime := time.Now().Add(duration)

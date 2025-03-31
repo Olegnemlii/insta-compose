@@ -1,0 +1,4 @@
+# ./pgdata/
+# ./.env
+# ./auth/pkg/
+# ./docker-compose.yml

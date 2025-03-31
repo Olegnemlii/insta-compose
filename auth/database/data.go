@@ -80,7 +80,7 @@ func (d *Database) CreateUser(ctx context.Context, email, hashedPassword string)
 		Scan(&user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
-		log.Printf("Failed to insert user: %v", err)
+		log.Printf("failed to insert user: %v", err)
 		return nil, fmt.Errorf("failed to insert user: %w", err)
 	}
 
